@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>激走！猫強制走行高速レース</title>
+    <style>
+        body {
+            font-family: "MS PGothic", sans-serif;
+            padding: 10px;
+            background-color: #f0f0f0;
+            text-align: center;
+            touch-action: manipulation;
+        }
+        h1 { margin: 10px 0; font-size: 24px; }
+        
+
+        #track-container {
+            margin-top: 20px;
+            background: #fff;
+            border: 2px solid #000;
+            display: none;
+        }
+        .lane {
+            border-bottom: 1px dashed #999;
+            height: 50px;
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .lane:last-child { border-bottom: none; }
+        
+
+        .goal-line {
+            position: absolute;
+            right: 10%;
+            top: 0;
+            bottom: 0;
+            width: 5px;
+            background-color: red;
+            z-index: 0;
+        }
+
+        /* 猫 */
+        .cat {
+            position: absolute;
+            font-size: 30px;
+            left: 0;
+            transition: left 0.007s linear; /* カクカクしすぎないように */
+            z-index: 1;
+            white-space: nowrap;
+        }
+        .cat-name {
+            font-size: 10px;
+            position: absolute;
+            top: -5px;
+            left: 0;
+            background: rgba(255,255,255,0.8);
+        }
+
+        /* 予想ボタン */
+        .bet-btn {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            margin: 5px 0;
+            font-size: 18px;
+            cursor: pointer;
+            background: #ddd;
+            border: 2px solid #555;
+        }
+        .bet-btn:active { background: #bbb; }
+
+        /* 結果表示 */
+        #result-area {
+            display: none;
+            margin-top: 20px;
+            border: 3px double red;
+            padding: 10px;
+            background: yellow;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="setup-screen">
+        <h1>🏁 激走！猫強制走行高速レース 🏁</h1>
+        <p>どの猫が勝つか予想してタップせよ！</p>
+        <div id="bet-buttons">
+            </div>
+    </div>
+
+    <h2 id="status-msg" style="color: red; font-size: 40px; display:none;"></h2>
+
+    <div id="track-container">
+        </div>
+
+    <div id="result-area">
+        <div id="result-text"></div>
+        <button onclick="location.reload()" style="font-size: 20px; margin-top: 10px; padding: 10px;">もう一回やる</button>
+    </div>
+
+<script>
+    // --- 設定 (Pythonから移植) ---
+    const RACE_LENGTH = 90; // CSSの%でゴール判定 (右端10%残し)
+    const NUM_CATS = 6;
+    const MIN_MOVE = 1;
+    const MAX_MOVE = 4; // スマホだと画面が狭いので少し進みやすく調整
+
+    // 猫リスト
+    let cats = [
+        {name: "タマ", symbol: "😼", pos: 0},
+        {name: "ミケ", symbol: "😺", pos: 0},
+        {name: "クロ", symbol: "😹", pos: 0},
+        {name: "シロ", symbol: "😻", pos: 0},
+        {name: "ハチ", symbol: "😽", pos: 0},
+        {name: "テオ", symbol: "🐈", pos: 0},
+    ];
+
+    // 猫の数を調整
+    if (cats.length > NUM_CATS) cats = cats.slice(0, NUM_CATS);
+
+    let predictedIndex = -1;
+    let timerId = null;
+
+    // --- 初期化 ---
+    window.onload = function() {
+        const btnContainer = document.getElementById('bet-buttons');
+        const trackContainer = document.getElementById('track-container');
+
+
+        cats.forEach((cat, index) => {
+
+            const btn = document.createElement('button');
+            btn.className = 'bet-btn';
+            btn.innerText = `[${index + 1}] ${cat.name} ${cat.symbol}`;
+            btn.onclick = () => startSequence(index);
+            btnContainer.appendChild(btn);
+
+ 
+            const lane = document.createElement('div');
+            lane.className = 'lane';
+            
+
+            const goal = document.createElement('div');
+            goal.className = 'goal-line';
+            lane.appendChild(goal);
+
+
+            const catElem = document.createElement('div');
+            catElem.className = 'cat';
+            catElem.id = `cat-${index}`;
+            catElem.innerHTML = `<span class="cat-name">${cat.name}</span>${cat.symbol}`;
+            lane.appendChild(catElem);
+
+            trackContainer.appendChild(lane);
+        });
+    };
+
+
+    function startSequence(choiceIndex) {
+        predictedIndex = choiceIndex;
+        document.getElementById('setup-screen').style.display = 'none';
+        document.getElementById('track-container').style.display = 'block';
+        
+        const statusMsg = document.getElementById('status-msg');
+        statusMsg.style.display = 'block';
+
+
+        let count = 3;
+        statusMsg.innerText = count;
+        
+        const countdown = setInterval(() => {
+            count--;
+            if (count > 0) {
+                statusMsg.innerText = count;
+            } else if (count === 0) {
+                statusMsg.innerText = "GO!!";
+            } else {
+                clearInterval(countdown);
+                statusMsg.style.display = 'none'; // GOを消す
+                runRace();
+            }
+        }, 800);
+    }
+
+    function runRace() {
+
+        timerId = setInterval(() => {
+            let winnerIndex = -1;
+
+            for (let i = 0; i < cats.length; i++) {
+
+                const move = Math.floor(Math.random() * (MAX_MOVE - MIN_MOVE + 1)) + MIN_MOVE;
+                cats[i].pos += move;
+
+
+                const catElem = document.getElementById(`cat-${i}`);
+                catElem.style.left = cats[i].pos + "%";
+
+
+                if (cats[i].pos >= RACE_LENGTH) {
+                    winnerIndex = i;
+                    break;
+                }
+            }
+
+
+            if (winnerIndex !== -1) {
+                clearInterval(timerId);
+                showResult(winnerIndex);
+            }
+
+        }, 100); 
+    }
+
+    function showResult(winnerIndex) {
+        const resultArea = document.getElementById('result-area');
+        const resultText = document.getElementById('result-text');
+        const winner = cats[winnerIndex];
+
+        resultArea.style.display = 'block';
+        
+        let msg = `<h1>🎉 勝者: ${winner.name} ${winner.symbol} 🎉</h1>`;
+        
+        if (winnerIndex === predictedIndex) {
+            msg += `<h2 style="color:red;">🎊圧倒的勝利🎊</h2>`;
+            document.body.style.backgroundColor = "#ffcccc"; // 当たり演出
+        } else {
+            const pred = cats[predictedIndex];
+            msg += `<p>ざんねん... あなたの予想 ${pred.name} は外れです。お前の負け</p>`;
+            document.body.style.backgroundColor = "#ccc"; // ハズレ演出
+        }
+
+        resultText.innerHTML = msg;
+        window.scrollTo(0, document.body.scrollHeight); // 結果までスクロール
+    }
+</script>
+</body>
+</html>
